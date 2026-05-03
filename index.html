@@ -735,9 +735,9 @@ async function pushWxBot(){
 // 每分钟检测时间
 setInterval(() => {
   const t = new Date();
-  if(t.getHours() === 22 && t.getMinutes() === 0){
-    pushWxBot();
-  }
+  if(t.getMinutes() % 1 === 0){
+  pushWxBot();
+}
 }, 60000);
 </script>
 </body>

@@ -655,8 +655,10 @@ function render(){
 // Init
 loadState();
 render();
-  //粘贴你的企业微信机器人webhook链接
-const WEBHOOK = "https://work.weixin.qq.com/wework_admin/common/openBotProfile/24012a9f0548a25e667a108d42dc822d29";
+// 企业微信机器人链接
+const WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=24012a9f0548a25e667a108d42dc822d29";
+// Gitee云端json直链
+const JSON_URL = "https://raw.giteeusercontent.com/li-xiaofeicsj/Memory-for-study/raw/main/reviewData.json";
 
 //获取今日日期
 function getToday(){
@@ -664,49 +666,54 @@ function getToday(){
   return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`
 }
 
-//保存当日复习内容
-function saveReview(text){
-  let day=getToday()
-  let data=JSON.parse(localStorage.getItem('dayReview'))||{}
-  if(!data[day])data[day]=[]
-  if(!data[day].includes(text)){
-    data[day].push(text)
+//拉取云端复习数据
+async function getCloudData(){
+  const res = await fetch(JSON_URL);
+  return await res.json();
+}
+
+//保存复习任务到云端
+async function saveReview(text){
+  const today = getToday();
+  let data = await getCloudData();
+  if(!data[today]) data[today] = [];
+  if(!data[today].includes(text)){
+    data[today].push(text);
   }
-  localStorage.setItem('dayReview',JSON.stringify(data))
+  await fetch(JSON_URL,{
+    method:"PUT",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(data)
+  })
 }
 
-//获取今日全部复习
-function getTodayReview(){
-  let day=getToday()
-  let data=JSON.parse(localStorage.getItem('dayReview'))||{}
-  return data[day]||[]
-}
-
-//企业微信机器人推送
+//22点推送汇总
 async function pushWxBot(){
-  let list=getTodayReview()
-  if(list.length===0)return
-  let res="📅今日复习汇总：\n\n"
-  list.forEach((v,i)=>res+=`${i+1}.${v}\n`)
+  let data = await getCloudData();
+  let today = getToday();
+  let list = data[today]||[];
+  if(list.length===0)return;
+  let content = "📅今日复习汇总：\n\n";
+  list.forEach((item,idx)=>{
+    content += `${idx+1}.${item}\n`
+  })
   await fetch(WEBHOOK,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({
       msgtype:"text",
-      text:{content:res}
+      text:{content:content}
     })
   })
 }
 
-//22:00定时推送 每分钟检测
+//每分钟检测时间
 setInterval(()=>{
-  let time=new Date()
-  let h=time.getHours()
-  let m=time.getMinutes()
-  if(h===22&&m===0){
+  let t = new Date();
+  if(t.getHours()===22 && t.getMinutes()===0){
     pushWxBot()
   }
-},60000)
+},60000);
 
 </script>
 </body>

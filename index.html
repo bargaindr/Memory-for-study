@@ -655,6 +655,7 @@ function render(){
 // Init
 loadState();
 render();
+
 const WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=24012a9f0548a25e667a108d42dc822d29";
 const GITEE_API_URL = "https://gitee.com/api/v5/repos/li-xiaofeicsj/Memory-for-study/contents/reviewData.json";
 const GITEE_TOKEN = "3a78e2c7569862ddffa9aa4d0c0c50cb";
@@ -665,12 +666,20 @@ function getToday(){
   return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
 }
 
+// 解决中文编码问题的工具函数
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function base64ToUtf8(str) {
+  return decodeURIComponent(escape(atob(str)));
+}
+
 
 async function getCloudData(){
   const res = await fetch(`${GITEE_API_URL}?access_token=${GITEE_TOKEN}`);
   const data = await res.json();
-  
-  const decoded = atob(data.content);
+  // API返回的是base64编码的内容，解码时用处理中文的方法
+  const decoded = base64ToUtf8(data.content);
   return JSON.parse(decoded);
 }
 
@@ -685,7 +694,8 @@ async function saveReview(text){
   
   // 先获取当前文件的sha值（更新文件必须带这个）
   const fileInfo = await fetch(`${GITEE_API_URL}?access_token=${GITEE_TOKEN}`).then(r => r.json());
-  const newContent = btoa(JSON.stringify(data, null, 2));
+  // 编码时用处理中文的方法
+  const newContent = utf8ToBase64(JSON.stringify(data, null, 2));
   
   // 上传更新后的文件
   await fetch(GITEE_API_URL, {
@@ -729,7 +739,6 @@ setInterval(() => {
     pushWxBot();
   }
 }, 60000);
-
 </script>
 </body>
 </html>

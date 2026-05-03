@@ -655,6 +655,59 @@ function render(){
 // Init
 loadState();
 render();
+  //粘贴你的企业微信机器人webhook链接
+const WEBHOOK = "https://work.weixin.qq.com/wework_admin/common/openBotProfile/24012a9f0548a25e667a108d42dc822d29";
+
+//获取今日日期
+function getToday(){
+  let d=new Date()
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`
+}
+
+//保存当日复习内容
+function saveReview(text){
+  let day=getToday()
+  let data=JSON.parse(localStorage.getItem('dayReview'))||{}
+  if(!data[day])data[day]=[]
+  if(!data[day].includes(text)){
+    data[day].push(text)
+  }
+  localStorage.setItem('dayReview',JSON.stringify(data))
+}
+
+//获取今日全部复习
+function getTodayReview(){
+  let day=getToday()
+  let data=JSON.parse(localStorage.getItem('dayReview'))||{}
+  return data[day]||[]
+}
+
+//企业微信机器人推送
+async function pushWxBot(){
+  let list=getTodayReview()
+  if(list.length===0)return
+  let res="📅今日复习汇总：\n\n"
+  list.forEach((v,i)=>res+=`${i+1}.${v}\n`)
+  await fetch(WEBHOOK,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      msgtype:"text",
+      text:{content:res}
+    })
+  })
+}
+
+//22:00定时推送 每分钟检测
+setInterval(()=>{
+  let time=new Date()
+  let h=time.getHours()
+  let m=time.getMinutes()
+  if(h===22&&m===0){
+    pushWxBot()
+  }
+},60000)
+
 </script>
 </body>
 </html>

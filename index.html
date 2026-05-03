@@ -655,24 +655,26 @@ function render(){
 // Init
 loadState();
 render();
-// 企业微信机器人链接
 const WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=24012a9f0548a25e667a108d42dc822d29";
-// Gitee云端json直链
-const JSON_URL = "https://raw.giteeusercontent.com/li-xiaofeicsj/Memory-for-study/raw/main/reviewData.json";
+const GITEE_API_URL = "https://gitee.com/api/v5/repos/li-xiaofeicsj/Memory-for-study/contents/reviewData.json";
+const GITEE_TOKEN = "3a78e2c7569862ddffa9aa4d0c0c50cb";
 
-//获取今日日期
+// 获取今日日期
 function getToday(){
-  let d=new Date()
-  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
 }
 
-//拉取云端复习数据
+
 async function getCloudData(){
-  const res = await fetch(JSON_URL);
-  return await res.json();
+  const res = await fetch(`${GITEE_API_URL}?access_token=${GITEE_TOKEN}`);
+  const data = await res.json();
+  
+  const decoded = atob(data.content);
+  return JSON.parse(decoded);
 }
 
-//保存复习任务到云端
+
 async function saveReview(text){
   const today = getToday();
   let data = await getCloudData();
@@ -680,40 +682,53 @@ async function saveReview(text){
   if(!data[today].includes(text)){
     data[today].push(text);
   }
-  await fetch(JSON_URL,{
-    method:"PUT",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(data)
-  })
+  
+  // 先获取当前文件的sha值（更新文件必须带这个）
+  const fileInfo = await fetch(`${GITEE_API_URL}?access_token=${GITEE_TOKEN}`).then(r => r.json());
+  const newContent = btoa(JSON.stringify(data, null, 2));
+  
+  // 上传更新后的文件
+  await fetch(GITEE_API_URL, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      access_token: GITEE_TOKEN,
+      message: "更新复习记录",
+      content: newContent,
+      sha: fileInfo.sha
+    })
+  });
 }
 
-//22点推送汇总
+// 22点推送汇总
 async function pushWxBot(){
   let data = await getCloudData();
   let today = getToday();
-  let list = data[today]||[];
-  if(list.length===0)return;
+  let list = data[today] || [];
+  if(list.length === 0) return;
+  
   let content = "📅今日复习汇总：\n\n";
-  list.forEach((item,idx)=>{
-    content += `${idx+1}.${item}\n`
-  })
-  await fetch(WEBHOOK,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      msgtype:"text",
-      text:{content:content}
+  list.forEach((item, idx) => {
+    content += `${idx+1}.${item}\n`;
+  });
+  
+  await fetch(WEBHOOK, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      msgtype: "text",
+      text: {content: content}
     })
-  })
+  });
 }
 
-//每分钟检测时间
-setInterval(()=>{
-  let t = new Date();
-  if(t.getHours()===22 && t.getMinutes()===0){
-    pushWxBot()
+// 每分钟检测时间
+setInterval(() => {
+  const t = new Date();
+  if(t.getHours() === 22 && t.getMinutes() === 0){
+    pushWxBot();
   }
-},60000);
+}, 60000);
 
 </script>
 </body>

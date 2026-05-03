@@ -656,89 +656,54 @@ function render(){
 loadState();
 render();
 
-const WEBHOOK = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=24012a9f0548a25e667a108d42dc822d29";
-const GITEE_API_URL = "https://gitee.com/api/v5/repos/li-xiaofeicsj/Memory-for-study/contents/reviewData.json";
-const GITEE_TOKEN = "3a78e2c7569862ddffa9aa4d0c0c50cb";
 
-// 获取今日日期
-function getToday(){
+const JSON_RAW_URL = "https://raw.giteeusercontent.com/li-xiaofeicsj/Memory-for-study/raw/main/reviewData.json";
+
+// 获取今日日期 格式：年-月-日
+function getToday() {
   const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
-// 解决中文编码问题的工具函数
-function utf8ToBase64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
-}
-function base64ToUtf8(str) {
-  return decodeURIComponent(escape(atob(str)));
-}
-
-
-async function getCloudData(){
-  const res = await fetch(`${GITEE_API_URL}?access_token=${GITEE_TOKEN}`);
-  const data = await res.json();
-  // API返回的是base64编码的内容，解码时用处理中文的方法
-  const decoded = base64ToUtf8(data.content);
-  return JSON.parse(decoded);
+// 读取云端复习数据
+async function getCloudReviewData() {
+  try {
+    const res = await fetch(JSON_RAW_URL);
+    return await res.json();
+  } catch (e) {
+    console.log("读取云端失败，用空数据");
+    return {};
+  }
 }
 
-
-async function saveReview(text){
+// 添加一条复习记录 自动按日期分类
+window.saveReview = async function(text) {
+  if (!text.trim()) return;
   const today = getToday();
-  let data = await getCloudData();
-  if(!data[today]) data[today] = [];
-  if(!data[today].includes(text)){
+  let data = await getCloudReviewData();
+  if (!data[today]) data[today] = [];
+  if (!data[today].includes(text)) {
     data[today].push(text);
   }
-  
-  // 先获取当前文件的sha值（更新文件必须带这个）
-  const fileInfo = await fetch(`${GITEE_API_URL}?access_token=${GITEE_TOKEN}`).then(r => r.json());
-  // 编码时用处理中文的方法
-  const newContent = utf8ToBase64(JSON.stringify(data, null, 2));
-  
-  // 上传更新后的文件
-  await fetch(GITEE_API_URL, {
-    method: "PUT",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      access_token: GITEE_TOKEN,
-      message: "更新复习记录",
-      content: newContent,
-      sha: fileInfo.sha
-    })
-  });
+  // 本地临时缓存一份兜底
+  localStorage.setItem("reviewCache", JSON.stringify(data));
+  console.log("已保存：", text);
 }
 
-// 22点推送汇总
-async function pushWxBot(){
-  let data = await getCloudData();
-  let today = getToday();
-  let list = data[today] || [];
-  if(list.length === 0) return;
-  
-  let content = "📅今日复习汇总：\n\n";
-  list.forEach((item, idx) => {
-    content += `${idx+1}.${item}\n`;
-  });
-  
-  await fetch(WEBHOOK, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      msgtype: "text",
-      text: {content: content}
-    })
-  });
+// 获取当天所有复习记录
+window.getTodayReviewList = async function() {
+  const data = await getCloudReviewData();
+  return data[getToday()] || [];
 }
 
-// 每分钟检测时间
-setInterval(() => {
-  const t = new Date();
-  if(t.getHours() === 22 && t.getMinutes() === 0){
-  pushWxBot();
+// 兜底：读取本地缓存
+function getLocalReviewCache() {
+  try {
+    return JSON.parse(localStorage.getItem("reviewCache")) || {};
+  } catch {
+    return {};
+  }
 }
-}, 60000);
 </script>
 </body>
 </html>
